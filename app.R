@@ -147,7 +147,7 @@ ui <- fluidPage(
         
         tabPanel("Sample statistics", 
                  hr(),
-                 p("Non-parametric survival curve"),
+                 p("Non-parametric survival curve:"),
                  plotOutput("KMPlots"),
                  hr(),
                  tags$b("Main statistics:"),
@@ -164,31 +164,49 @@ ui <- fluidPage(
         ),
         
         tabPanel("CoxPH", 
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("cox_traintest_table"),
+                 p("Internally cross-validated Test results for each CV fold:"),
+                 DT::dataTableOutput("cox_traintest_table_all"),
+                 hr(),
+                 p("CoxPH coefficients:"),
                  DT::dataTableOutput("cox_coef"),
                  hr(),
+                 p("Other results:"),
                  verbatimTextOutput("cox_table"),
         ),
         
         tabPanel("SRF", 
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("srf_traintest_table"),
+                 p("Internally cross-validated Test results for each CV fold:"),
+                 DT::dataTableOutput("srf_traintest_table_all"),
                  verbatimTextOutput("srf_table")),
         
         tabPanel("Ens1: CoxPH->SRF", 
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("ens1_traintest_table"),
+                 p("Internally cross-validated Test results for each CV fold:"),
+                 DT::dataTableOutput("ens1_traintest_table_all"),
                  verbatimTextOutput("ens1_table"),
         ),
         
         tabPanel("Ens2: CoxPH in clusters", 
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("ens2_traintest_table"),
+                 p("Internally cross-validated Test results for each CV fold:"),
+                 DT::dataTableOutput("ens2_traintest_table_all"),
                  plotOutput("ens2_plot_tree"),
                  plotOutput("ens2_plot_tree_cv"),
                  verbatimTextOutput("ens2_display_clusters"),
                  hr(),
                  verbatimTextOutput("ens2_table")),
         
-        tabPanel("Ens3: extended CoxPH",                 
+        tabPanel("Ens3: extended CoxPH",                
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("ens3_traintest_table"),
+                 p("Internally cross-validated Test results for each CV fold:"),
+                 DT::dataTableOutput("ens3_traintest_table_all"),
                  plotOutput("ens3_plot_tree"),
                  plotOutput("ens3_plot_tree_cv"),
                  DT::dataTableOutput("ens3_single_cox_coef"),
@@ -196,6 +214,7 @@ ui <- fluidPage(
                  verbatimTextOutput("ens3_table")),
         
         tabPanel("Summary", 
+                 p("Internally cross-validated results:"),
                  DT::dataTableOutput("performance_cox"),
                  DT::dataTableOutput("performance_table_std"),
                  DT::dataTableOutput("performance_table_diff_to_cox")),
@@ -440,7 +459,7 @@ server <- function(input, output) {
   })
   
   output$performance_cox <- DT::renderDataTable({
-    results_on_test_sets = performance_table_reactive()[c(1,2,5,6,7), ]
+    results_on_test_sets = performance_table_reactive()[c(1,2,3,4,5,6,7), ]
     DT::datatable(results_on_test_sets)
   })
   
@@ -460,52 +479,86 @@ server <- function(input, output) {
     SRF_cv()
   })
   
+  #CV results table for SRF, test for all CV folds
+  output$srf_traintest_table_all <- DT::renderDataTable({
+    x <- datasetInput()
+    rrr <- round(rbind("test" = SRF_cv()$test), 4)
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
+  })
+  
+  #CV results table for SRF, train and test
   output$srf_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr <- round(rbind("test" = SRF_cv()$testaverage, 
                        "train" = SRF_cv()$trainaverage), 4)
-    DT::datatable(rrr[, c(2,5,6,7,1)])
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
   })
   
+  #CV results table for CoxPH, train and test
   output$cox_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = CoxPH_cv()$testaverage, 
                       "train" = CoxPH_cv()$trainaverage),4)
-    DT::datatable(rrr[, c(2,5,6,7,1)])
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
   })
   
+  output$cox_traintest_table_all <- DT::renderDataTable({
+    x <- datasetInput()
+    rrr<- round(rbind("test" = CoxPH_cv()$test),4)
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
+  })
+  
+  #CV results table for Ens1, train and test
   output$ens1_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = Ens1_cv()$testaverage, 
                       "train" = Ens1_cv()$trainaverage),4)
-    DT::datatable(rrr[, c(2,5,6,7,1)])
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
   })
   
+  output$ens1_traintest_table_all <- DT::renderDataTable({
+    x <- datasetInput()
+    rrr<- round(rbind("test" = Ens1_cv()$test),4)
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
+  })
+  
+  #CV results table for Ens2, train and test
   output$ens2_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = Ens2_cv()$testaverage, 
                       "train" = Ens2_cv()$trainaverage),4)
-    DT::datatable(rrr[, c(2,5,6,7,1)])
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
   })
   
+  output$ens2_traintest_table_all <- DT::renderDataTable({
+    x <- datasetInput()
+    rrr<- round(rbind("test" = Ens2_cv()$test),4)
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
+  })
+  
+  #CV results table for Ens3, train and test
   output$ens3_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = Ens3_cv()$testaverage, 
                       "train" = Ens3_cv()$trainaverage),4)
-    DT::datatable(rrr[, c(2,5,6,7,1)])
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
+  })
+
+  output$ens3_traintest_table_all <- DT::renderDataTable({
+    x <- datasetInput()
+    rrr<- round(rbind("test" = Ens3_cv()$test),4)
+    DT::datatable(rrr[, c(2,3,4,5,6,7,1)])
   })
   
    output$ens1_table <- renderPrint({
     x <- datasetInput()
     Ens1_cv()
   })
-  
-  
+
   output$ens2_table <- renderPrint({
     Ens2_cv()
   })
   
- 
   output$ens3_table <- renderPrint({
     x <- datasetInput()
     Ens3_cv()
@@ -590,13 +643,13 @@ server <- function(input, output) {
   output$performance_table_std <- DT::renderDataTable({
     # outcomes and conclusions on linear/non-linear effects 
     DT::datatable(
-      performance_table_std_reactive()[c(1,2,5,6,7),])
+      performance_table_std_reactive()[c(1,2,3,4,5,6,7),])
   })
   
   output$performance_table_diff_to_cox <- DT::renderDataTable({
     # outcomes and conclusions on linear/non-linear effects 
     DT::datatable(
-      results_table_diff_to_cox()[c(1,2,5,6,7),])
+      results_table_diff_to_cox()[c(1,2,3,4,5,6,7),])
   })
   
   output$conclusions_text<- renderPrint({
