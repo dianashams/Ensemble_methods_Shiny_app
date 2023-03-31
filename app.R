@@ -5,28 +5,29 @@
 #    http://shiny.rstudio.com/
 #
 
+
 library(shiny)
 library(rpart.plot)
 library(ggplot2)
 library(GGally)
 
 ### set home directory, source files, set link to the data files
-### set home directory, source files, set link to the data files
-
 #laptop:
 #setwd("~/Desktop/Study_KCL/PhD Projects/Ensemblemethods/GitHub_current")
-#elsa_file= "~/Desktop/Study_KCL/PhD Projects/Ensemblemethods/diabetes_data_for_method.csv"
-#foot_file = "~/Desktop/Study_KCL/PhD Projects/Ensemblemethods/5yearfoot_ensemble.csv"
-
 #window pc
-setwd("C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/R Code")
-elsa_file= "C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/R Code/diabetes_data_for_method.csv"
-foot_file = "C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/R Code/5yearfoot_ensemble.csv"
-hnscc_file = "C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/R Code/hnscc_merged.csv"
+#setwd("C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/GitHub_App/Private_repository")
+#office pc
+#setwd("C:/Users/K1514174/OneDrive - King's College London/Desktop/Ensemble methods/ensemble-methods-for-survival-analysis-main")
+
+elsa_file= "Data/diabetes_data_for_method.csv"
+foot_file = "Data/5yearfoot_ensemble.csv"
+hnscc_file = "Data/hnscc_merged.csv"
+w500_file = "Data/whas500.csv"
+gbsg_data = "Data/gbsg_data.csv"
 
 
-source("Simulating_data.R")
-source("EnsembleMethods_SeparateCodesByMethod.R")
+source("R_Simulating_survival_data.R")
+source("Ensemble_Methods.R")
 
 ###
 
@@ -68,6 +69,7 @@ ui <- fluidPage(
         choices = c("Simulated: Cross-terms", 
                     "Simulated: Non-linear", 
                     "Simulated: Linear",
+                    "Simulated: Non PH",
                     "Diabetes_depression",
                     "ELSA_Diabetes",
                     "Hnscc",
@@ -92,7 +94,7 @@ ui <- fluidPage(
       inputPanel("",
                  numericInput(inputId = "randomseed",
                               label = "Simulated data: random seed (generation):",
-                              value = 42),
+                              value = 4242),
                  
                  numericInput(inputId = "N",
                               label = "Sample size:",
@@ -102,9 +104,13 @@ ui <- fluidPage(
                               label = "Observation time",
                               value = 5.0),
                  
-                 numericInput(inputId = "percent_censored",
-                              label = "Simulated drop out rate",
-                              value = 0.2),
+                 numericInput(inputId = "percent_censored_inv",
+                              label = "Expected event prevalence by study end",
+                              value = 0.5),
+                 
+                 numericInput(inputId = "drop_out_rate",
+                              label = "Expected drop out rate",
+                              value = 0.3),
       ),
       
       inputPanel("",
@@ -119,7 +125,7 @@ ui <- fluidPage(
                            label = "Predictors to use in the model",
                            value = ' "baseline_age_", "genderdum", "bmi_0_", "cvd_0", "hyp_0", "baseline_exercise",  "B_wealth", 
                              "baseline_B_smokstatus",  "t2dm_", "pc1_", "pc2_", "pc3_" ',
-                           placeholder = "age, bmi, gender, hyp"),
+                           placeholder = "age, bmi, sex, hyp"),
                  
                  textInput(inputId = "custom_time",
                            label = "Time variable name",
@@ -140,15 +146,21 @@ ui <- fluidPage(
         id = 'methods_results',
         
         tabPanel("Sample statistics", 
-                 tags$b("Predictors stats:"),
+                 hr(),
+                 p("Non-parametric survival curve"),
+                 plotOutput("KMPlots"),
+                 hr(),
+                 tags$b("Main statistics:"),
+                 verbatimTextOutput("data_summary"),
+                 hr(),
+                 tags$b("Data description:"),
                  DT::dataTableOutput("data_stats_table"),
                  hr(),
                  plotOutput("distPlot1"),
                  hr(),
+                 tags$b("Histograms for the first 10 predictors:"),
                  plotOutput("distPlot2"),
                  hr(),
-                 tags$b("Population stats:"),
-                 verbatimTextOutput("data_summary"),
         ),
         
         tabPanel("CoxPH", 
@@ -162,19 +174,20 @@ ui <- fluidPage(
                  DT::dataTableOutput("srf_traintest_table"),
                  verbatimTextOutput("srf_table")),
         
-        tabPanel("Ens1", 
+        tabPanel("Ens1: CoxPH->SRF", 
                  DT::dataTableOutput("ens1_traintest_table"),
                  verbatimTextOutput("ens1_table"),
         ),
         
-        tabPanel("Ens2", 
+        tabPanel("Ens2: CoxPH in clusters", 
                  DT::dataTableOutput("ens2_traintest_table"),
                  plotOutput("ens2_plot_tree"),
+                 plotOutput("ens2_plot_tree_cv"),
                  verbatimTextOutput("ens2_display_clusters"),
                  hr(),
                  verbatimTextOutput("ens2_table")),
         
-        tabPanel("Ens3",                 
+        tabPanel("Ens3: extended CoxPH",                 
                  DT::dataTableOutput("ens3_traintest_table"),
                  plotOutput("ens3_plot_tree"),
                  plotOutput("ens3_plot_tree_cv"),
@@ -182,12 +195,13 @@ ui <- fluidPage(
                  hr(),
                  verbatimTextOutput("ens3_table")),
         
-        tabPanel("Performance", 
+        tabPanel("Summary", 
                  DT::dataTableOutput("performance_cox"),
                  DT::dataTableOutput("performance_table_std"),
                  DT::dataTableOutput("performance_table_diff_to_cox")),
         
         tabPanel("Conclusions", 
+                 p("To be added"),
                  verbatimTextOutput("conclusions_text")),
       )
     )
@@ -202,18 +216,31 @@ server <- function(input, output) {
   ### load / simulate  data set 
   datasetInput <- reactive({
     switch(input$data_type,
-           "Simulated: Linear" = simulatedata_linear(input$N, 
-                                                     observe_time = input$observation_time,
-                                                     randomseed = input$randomseed,
-                                                     percentcensored = input$percent_censored),
-           "Simulated: Non-linear" = simulatedata_nonlinear(input$N,
-                                                            observe_time = input$observation_time,
-                                                            randomseed = input$randomseed,
-                                                            percentcensored = input$percent_censored),
-           "Simulated: Cross-terms" = simulatedata_crossterms(input$N,
-                                                              observe_time = input$observation_time,
-                                                              randomseed = input$randomseed,
-                                                              percentcensored = input$percent_censored),
+           "Simulated: Linear" = 
+             simulatedata_linear(input$N, 
+                                 observe_time = input$observation_time,
+                                 randomseed = input$randomseed,
+                                 percentcensored = 1-input$percent_censored_inv,
+                                 drop_out = input$drop_out_rate),
+           "Simulated: Non-linear" = 
+             simulatedata_nonlinear(input$N,
+                                    observe_time = input$observation_time,
+                                  randomseed = input$randomseed,
+                                  percentcensored = 1-input$percent_censored_inv,
+                                  drop_out = input$drop_out_rate),
+           "Simulated: Cross-terms"= 
+             simulatedata_crossterms(input$N,
+                                     observe_time = input$observation_time,
+                                     randomseed = input$randomseed,
+                                     percentcensored = 1- input$percent_censored_inv,
+                                     drop_out = input$drop_out_rate),
+           "Simulated: Non PH" =  
+             simulatedata_lin_nonPH(input$N,
+                                    observe_time = input$observation_time,
+                                    randomseed = input$randomseed,
+                                    percentcensored = 1- input$percent_censored_inv,
+                                    drop_out = input$drop_out_rate),
+           
            "ELSA_Diabetes" = read.csv(elsa_file), 
            "Diabetes_depression" = read.csv(foot_file),
            "Custom" = read.csv(input$custom_file),
@@ -224,9 +251,10 @@ server <- function(input, output) {
   ### define predictors 
   predictfactors <- reactive({
     switch(input$data_type,
-           "Simulated: Linear" = c("age", "bmi", "hyp", "gender"),
-           "Simulated: Non-linear" = c("age", "bmi", "hyp", "gender"),
-           "Simulated: Cross-terms" = c("age", "bmi", "hyp", "gender"),
+           "Simulated: Linear" = c("age", "bmi", "hyp", "sex"),
+           "Simulated: Non-linear" = c("age", "bmi", "hyp", "sex"),
+           "Simulated: Cross-terms" = c("age", "bmi", "hyp", "sex"),
+           "Simulated: Non PH" = c("age", "bmi", "hyp", "sex"),
            "ELSA_Diabetes" = c("baseline_age_", "genderdum", "bmi_0_", "cvd_0", "hyp_0",
                                "baseline_exercise",  "B_wealth","baseline_B_smokstatus",
                                "t2dm_", "pc1_", "pc2_", "pc3_"),
@@ -239,6 +267,22 @@ server <- function(input, output) {
   })
   
   ### Describe the data ##################
+  
+  #population stat
+  output$data_summary <- renderPrint({
+    x <- datasetInput()
+    populationstats(x, input$fixed_time, input$data_type)
+  })
+  
+  # describe() the data
+  output$data_stats_table <- DT::renderDataTable({
+    x <- datasetInput()
+    predict.factors <- predictfactors()
+    params10 = ifelse(length(predict.factors)>10, 10, length(predict.factors))
+    DT::datatable(round(describe(x[ ,predict.factors[1:params10]]),4))
+  })  
+  
+  # histogram for event times
   output$distPlot1 <- renderPlot({
     x <- datasetInput()
     nbins = ifelse(input$N<=500, 
@@ -254,17 +298,8 @@ server <- function(input, output) {
          xlab = 'Time',
          main = 'Event times')
   })
-  
-  output$data_summary <- renderPrint({
-    x <- datasetInput()
-    populationstats(x, input$fixed_time, input$data_type)
-  })
-  
-  output$data_stats_table <- DT::renderDataTable({
-    x <- datasetInput()
-    DT::datatable(round(describe(x),4))
-  })
-  
+
+  # plot ggpairs for the first 10 predictors
   output$distPlot2 <- renderPlot({
     x <- datasetInput()
     predict.factors <- predictfactors()
@@ -273,62 +308,131 @@ server <- function(input, output) {
     ggpairs(x[,predict.factors.plot])
   })
   
-  output$distPlot0 <- renderPlot({
+  # KM survival curve
+  output$KMPlots <- renderPlot({
     x <- datasetInput()
-    bins = ifelse(input$N<=500, 
-                  round(input$N/20,0), 
-                  round(100,0))
-    times_no_event = x[x$event==0, "time"]
-    bins <- seq(min(times_no_event), 
-                max(times_no_event), 
-                length.out = bins)
-    # draw the histogram with the specified number of bins
-    hist(times_no_event, breaks = bins, 
-         col = 'darkgray', border = 'white',
-         xlab = 'Time',
-         main = 'Censored times',
-         ylim = c(0, 100.0))
+    predict.factors <- predictfactors()
+    fit = survfit(as.formula(paste("Surv(time, event) ~ 1")), data = x)
+    ggsurvplot(fit, data = x)
   })
   
+
   #' End (describe the data) ##################
   
   ### Apply methods  ############################################
   
-  CoxPH_cv <- reactive({
+  ######### 1 running models on the entire data ###########
+  
+  #CoxPH training on entire data
+  CoxPH_train_on_all <- reactive({
     x <- datasetInput()
     predict.factors <- predictfactors()
-    # Cox model
-    method_cox_cv(x, 
-                  predict.factors, 
-                  fixed_time = input$fixed_time, 
-                  cv_number = input$k_outer,  
-                  seed_to_fix = input$randomseed_validation)
+    method_cox_train(x, predict.factors)
   })
   
+  #Ensemble 2 training on entire data
   Ens2_train_on_all <- reactive({
     x <- datasetInput()
     predict.factors <- predictfactors()
     
     method_2A_train(x, predict.factors, 
                     fixed_time = input$fixed_time, 
-                    internal_cv_k = input$k_inner, 
+                    inner_cv = input$k_inner, 
                     seed_to_fix = input$randomseed_validation)
   })
   
+  #Ensemble 3 training on entire data
   Ens3_train_on_all <- reactive({
     x <- datasetInput()
     predict.factors <- predictfactors()
     
     method_3_train(x, predict.factors, 
                    fixed_time = input$fixed_time,  
-                   internal_cv_k = input$k_inner, 
+                   inner_cv = input$k_inner, 
                    seed_to_fix = input$randomseed_validation)
   })
   
-  CoxPH_train_on_all <- reactive({
+  ######### 2 internal cross-validation  #############
+  
+  # CoxPH cross-validation Reactive
+  CoxPH_cv <- reactive({
     x <- datasetInput()
     predict.factors <- predictfactors()
-    method_cox_train(x, predict.factors)
+    # Cox model
+    method_any_cv(x, 
+                  predict.factors,
+                  method_cox_train, method_cox_predict, 
+                  valuation_times = input$fixed_time, 
+                  cv_number = input$k_outer, 
+                  seed_for_cv = input$randomseed_validation, 
+                  parallel=TRUE)
+  })
+
+  # SRF internal CV  
+  SRF_cv <- reactive({
+    x <- datasetInput()
+    predict.factors <- predictfactors()
+    # applying SRF nested CV method: 
+    method_any_cv(x, predict.factors, 
+                  method_srf_train, method_srf_predict, 
+                  valuation_times = input$fixed_time, 
+                  cv_number = input$k_outer, 
+                  seed_for_cv = input$randomseed_validation, 
+                  parallel=TRUE, 
+                  model_args = 
+                    list("inner_cv"=input$k_inner, 
+                    "verbose"=FALSE,
+                    "seed_to_fix" = input$k_inner*1001),
+                  predict_args = list())
+    
+  })
+  
+  # Ensemble 1A internal CV  
+  Ens1_cv <- reactive({
+    x <- datasetInput()
+    predict.factors <- predictfactors()
+    # Cox model
+    method_any_cv(df = x, predict.factors, 
+                  method_1A_train, method_1A_predict, 
+                  valuation_times = input$fixed_time, 
+                  cv_number = input$k_outer, 
+                  model_args = 
+                    list("inner_cv"=input$k_inner, 
+                    "verbose"=FALSE,
+                    "seed_to_fix" = input$k_inner*1001),
+                  seed_for_cv = input$randomseed_validation)
+  })
+  
+  # Ensemble 2 internal CV  
+  Ens2_cv <- reactive({
+    x <- datasetInput()
+    predict.factors <- predictfactors()
+    # Cox model
+    method_any_cv(df = x, predict.factors, 
+                  method_2A_train, method_2A_predict, 
+                  valuation_times = input$fixed_time, 
+                  cv_number = input$k_outer, 
+                  model_args = 
+                    list("inner_cv"=input$k_inner, 
+                    "verbose"=FALSE,
+                    "seed_to_fix" = input$k_inner*1001),
+                  seed_for_cv = input$randomseed_validation)
+  })
+  
+  # Ensemble 3 internal CV  
+  Ens3_cv <- reactive({
+    x <- datasetInput()
+    predict.factors <- predictfactors()
+    # Cox model
+    method_any_cv(df = x, predict.factors, 
+                  method_3_train, method_3_predict, 
+                  valuation_times = input$fixed_time, 
+                  cv_number = input$k_outer, 
+                  model_args = 
+                    list("inner_cv"=input$k_inner, 
+                    "verbose"=FALSE,
+                    "seed_to_fix" = input$k_inner*1001),
+                  seed_for_cv = input$randomseed_validation)
   })
   
   output$cox_table <- renderPrint({
@@ -351,27 +455,6 @@ server <- function(input, output) {
       6)
   })
   
-  SRF_cv <- reactive({
-    x <- datasetInput()
-    predict.factors <- predictfactors()
-    
-    #data descriptive tables
-    output$srf_traintest_table <- DT::renderDataTable({
-      x <- datasetInput()
-      rrr <- round(rbind("test" = SRF_cv()$testaverage, 
-                         "train" = SRF_cv()$trainaverage), 4)
-      DT::datatable(rrr[, c(2,5,6,7,1)])
-    })
-    
-    method_srf_cv(x, 
-                  predict.factors, 
-                  fixed_time = input$fixed_time, 
-                  cv_number = input$k_outer, 
-                  internal_cv_k = input$k_inner,
-                  seed_to_fix = input$randomseed_validation)
-  })
-  
-
   output$srf_table <- renderPrint({
     x <- datasetInput()
     SRF_cv()
@@ -397,12 +480,14 @@ server <- function(input, output) {
                       "train" = Ens1_cv()$trainaverage),4)
     DT::datatable(rrr[, c(2,5,6,7,1)])
   })
+  
   output$ens2_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = Ens2_cv()$testaverage, 
                       "train" = Ens2_cv()$trainaverage),4)
     DT::datatable(rrr[, c(2,5,6,7,1)])
   })
+  
   output$ens3_traintest_table <- DT::renderDataTable({
     x <- datasetInput()
     rrr<- round(rbind("test" = Ens3_cv()$testaverage, 
@@ -410,51 +495,17 @@ server <- function(input, output) {
     DT::datatable(rrr[, c(2,5,6,7,1)])
   })
   
-  Ens1_cv <- reactive({
-    x <- datasetInput()
-    predict.factors <- predictfactors()
-    # Cox model
-    method_1A_cv(x, 
-                 predict.factors, 
-                 fixed_time = input$fixed_time, 
-                 cv_number = input$k_outer, 
-                 internal_cv_k = input$k_inner,
-                 seed_to_fix = input$randomseed_validation)
-  })
-  
-  output$ens1_table <- renderPrint({
+   output$ens1_table <- renderPrint({
     x <- datasetInput()
     Ens1_cv()
   })
   
-  Ens2_cv <- reactive({
-    x <- datasetInput()
-    predict.factors <- predictfactors()
-    # Cox model
-    method_2A_cv(x, 
-                 predict.factors, 
-                 fixed_time = input$fixed_time, 
-                 cv_number = input$k_outer, 
-                 internal_cv_k = input$k_inner,
-                 seed_to_fix = input$randomseed_validation)
-  })
   
   output$ens2_table <- renderPrint({
     Ens2_cv()
   })
   
-  Ens3_cv <- reactive({
-    x <- datasetInput()
-    predict.factors <- predictfactors()
-    # Cox model
-    method_3_cv(x, 
-                predict.factors, 
-                fixed_time = input$fixed_time, 
-                cv_number = input$k_outer, 
-                internal_cv_k = input$k_inner,
-                seed_to_fix = input$randomseed_validation)
-  })
-  
+ 
   output$ens3_table <- renderPrint({
     x <- datasetInput()
     Ens3_cv()
@@ -473,19 +524,30 @@ server <- function(input, output) {
     rpart.plot(m2$treemodel, nn=TRUE, roundint = FALSE, digits = 4)
   })
   
+  output$ens2_plot_tree_cv <- renderPlot({
+    # method 2: display all CV trees
+    m2cv <- Ens2_cv()
+    cv_number = length(m2cv$model_list)
+    par(mfrow=c(cv_number+1,1))
+    for (i in 1:cv_number){
+      rpart.plot(m2cv$model_list[[i]]$treemodel,
+                 nn=TRUE, roundint = FALSE, digits = 4)
+    }
+  })
+  
   output$ens3_plot_tree <- renderPlot({
-    # method 2: display single tree
+    # method 3: display single tree
     m3 <- Ens3_train_on_all()
     rpart.plot(m3$treemodel, nn=TRUE, roundint = FALSE, digits = 4)
   })
   
   output$ens3_plot_tree_cv <- renderPlot({
-    # method 2: display single tree
+    # method 3: display all CV trees
     m3cv <- Ens3_cv()
-    cv_number = length(m3cv$tuned_cv_models)
+    cv_number = length(m3cv$model_list)
     par(mfrow=c(cv_number+1,1))
     for (i in 1:cv_number){
-      rpart.plot(m3cv$tuned_cv_models[[i]]$treemodel, 
+      rpart.plot(m3cv$model_list[[i]]$treemodel,
                  nn=TRUE, roundint = FALSE, digits = 4)
     }
   })
