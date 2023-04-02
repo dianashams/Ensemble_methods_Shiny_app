@@ -269,7 +269,7 @@ server <- function(input, output) {
            "W500" = read.csv(w500_file)
     )
   })
-  cat(model_e_0 ,sep = '", "')
+  
   ### define predictors 
   predictfactors <- reactive({
     switch(input$data_type,
@@ -291,7 +291,7 @@ server <- function(input, output) {
                        ,"original_shape_SurfaceArea" ,"original_shape_SurfaceVolumeRatio" ,"original_shape_VoxelVolume"),
            "W500" = c("age", "gender", "hr", "sysbp", "diasbp",
                       "bmi","cvd",  "afb","sho","chf",
-                      "av3","miord", "mitype", "los"),
+                      "av3","miord", "mitype", "los", "y1997", "y1999"),
            "Custom" = Clean_String(input$custom_predictors),
     )
   })

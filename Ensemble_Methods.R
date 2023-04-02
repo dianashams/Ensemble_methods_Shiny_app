@@ -211,7 +211,7 @@ method_any_cv = function(df, predict.factors, train_function, predict_function, 
 
 
 method_any_validate = function(y_predict, times_to_predict, df_train, 
-                               df_test, weighted = TRUE, alpha = "logit"){
+                               df_test, weighted = TRUE, alpha = "mean"){
   
   #This function computes auc, brier score, c-index,
   # calibration slope and alpha for df_test
@@ -1304,7 +1304,7 @@ method_2A_train = function(df_train, predict.factors,
   #2) build the shallow tree: cross-validate the method by the number of VIMP factors and depth of the single tree 
   # number of factors for the tree 3,4,...,10; max tree depth from 3 to 7
   if(p>=3) {p_cv = 3:min(5, p)} else{p_cv=3} #CV by 3,4,...,10 factors for a shallow tree
-  maxdepthlist = 2:4
+  maxdepthlist = 3:5
   
   if(n>=200){ minbucket_list = seq(25, min(round(n/4,0),150), by = 50)
   }else{minbucket_list = c(25,50)}
@@ -1507,7 +1507,7 @@ method_3_train = function(df_train, predict.factors,
   #2) build the shallow tree: cross-validate the method by the number of VIMP factors and depth of the single tree 
   # number of factors for the tree 3,4,...,10; max tree depth from 3 to 7
   if(p>=3) {p_cv = 3:min(5, p)} else{p_cv=3} #CV by 3,4,...,10 factors for a shallow tree
-  maxdepthlist = 2:4
+  maxdepthlist = 3:5
   
   if(n>=200){ minbucket_list = seq(25, min(round(n/4,0),150), by = 50)
   }else{minbucket_list = c(25,50)}
