@@ -643,7 +643,7 @@ srf_survival_prob_for_time = function(rfmodel, df_to_predict, fixed_time, oob = 
 
 srf_tune = function(df_tune,  cv_number =3, 
                     predict.factors, fixed_time = NaN, 
-                    seed_to_fix = 100,mtry= c(3,4,5), 
+                    seed_to_fix = 100,mtry = c(3,4,5), 
                     nodesize = c(10,20,50),nodedepth = c(100),
                     verbose = FALSE, oob = TRUE){
   #function to tune survival random forest by mtry, nodesize and nodedepth grid 
@@ -708,7 +708,7 @@ srf_tune = function(df_tune,  cv_number =3,
                       ntree = 300,
                       mtry = mtry_i, 
                       nodedepth = nodedepth_i,  
-                      nsplit = 50, 
+                      nsplit = 100, 
                       splitrule = "logrank", statistics= FALSE, membership=TRUE,
                       importance = "none", #to speed up by switching off VIMP calculations
                       seed = seed_to_fix
@@ -756,7 +756,7 @@ srf_tune = function(df_tune,  cv_number =3,
                     ntree = 300,
                     mtry = mtry_i, 
                     nodedepth = nodedepth_i,  
-                    nsplit = 50, 
+                    nsplit = 100, 
                     splitrule = "logrank", statistics= FALSE, membership=TRUE,
                     importance = "none", #to speed up by switching off VIMP calculations
                     seed = seed_to_fix)
@@ -817,7 +817,7 @@ method_srf_train = function(df_train, predict.factors,
   
   # defining output for fixed_time
   if ( sum(is.nan(fixed_time))>0| (length(fixed_time)>1)){
-    fixed_time = round(quantile(df_train[df_train$event==1, "time"], 0.85),1)}
+    fixed_time = round(quantile(df_train[df_train$event==1, "time"], 0.9),1)}
   
   if (p<=10) {mtry = c(2,3,4,5)}else{if(p<=25){mtry = c(3,5,7,10,15)}else{
     mtry = c(round(p/10,0),round(p/5,0), round(p/3,0), round(p/2,0),mtry_default)}}
@@ -865,7 +865,7 @@ method_srf_train = function(df_train, predict.factors,
                      ntree = 500,
                      mtry = as.integer(mtry_best), 
                      nodedepth = as.integer(nodedepth_best),  
-                     nsplit = 50, 
+                     nsplit = 100, 
                      splitrule = "logrank", statistics= FALSE, membership=TRUE,
                      importance = "none", #to speed up by switching off VIMP calculations
                      seed = seed_to_fix
@@ -1301,8 +1301,8 @@ method_2A_train = function(df_train, predict.factors,
   #alternative method could be holdout.vimp.rfsrc(as.formula(paste("Surv(time, event) ~", paste(predict.factors, collapse="+"))), df_train, splitrule = "logrank", importance = "permute", ntree= 1000,  seed = seed_to_fix)
   
   
-  #2) build the shallow tree: cross-validate the method by the number of VIMP factors and depth of the single tree 
-  # number of factors for the tree 3,4,...,10; max tree depth from 3 to 7
+  #2) tuning and growing shallow tree: cross-validate by the number of VIMP factors and tree depth 
+  # number of factors for the tree 3,4,...,10; max tree depth from 3 to 5
   if(p>=3) {p_cv = 3:min(5, p)} else{p_cv=3} #CV by 3,4,...,10 factors for a shallow tree
   maxdepthlist = 3:5
   
@@ -1505,7 +1505,7 @@ method_3_train = function(df_train, predict.factors,
   
   
   #2) build the shallow tree: cross-validate the method by the number of VIMP factors and depth of the single tree 
-  # number of factors for the tree 3,4,...,10; max tree depth from 3 to 7
+  # number of factors for the tree 3,4,...,10; max tree depth from 3 to 5
   if(p>=3) {p_cv = 3:min(5, p)} else{p_cv=3} #CV by 3,4,...,10 factors for a shallow tree
   maxdepthlist = 3:5
   
