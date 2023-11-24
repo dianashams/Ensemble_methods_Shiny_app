@@ -25,6 +25,7 @@ foot_file = "Data/5yearfoot_ensemble.csv"
 hnscc_file = "Data/hnscc_merged.csv"
 w500_file = "Data/W500.csv"
 gbsg_data = "Data/gbsg_data.csv"
+hf_data = "Data/heart_failure_clinical_records_dataset_formatted.csv"
 
 source("R_Simulating_survival_data.R")
 source("Ensemble_Methods.R")
@@ -75,6 +76,7 @@ ui <- fluidPage(
                     "ELSA_Diabetes",
                     "Hnscc",
                     "W500",
+                    "HeartFailure_data",
                     "Custom"),
       ),
       numericInput(inputId = "fixed_time",
@@ -266,7 +268,8 @@ server <- function(input, output) {
            "Foot_Ulcer_Study" = read.csv(foot_file),
            "Custom" = read.csv(input$custom_file),
            "Hnscc" = read.csv(hnscc_file),
-           "W500" = read.csv(w500_file)
+           "W500" = read.csv(w500_file),
+           "HeartFailure_data" = read.csv(hf_data)
     )
   })
   
@@ -292,6 +295,9 @@ server <- function(input, output) {
            "W500" = c("age", "gender", "hr", "sysbp", "diasbp",
                       "bmi","cvd",  "afb","sho","chf",
                       "av3","miord", "mitype", "los", "y1997", "y1999"),
+           "HeartFailure_data" =c("age", "anaemia", "creatinine_phosphokinase", "diabetes",
+                                  "ejection_fraction",  "high_blood_pressure", "platelets",
+                                  "serum_creatinine","serum_sodium","sex","smoking"),
            "Custom" = Clean_String(input$custom_predictors),
     )
   })
